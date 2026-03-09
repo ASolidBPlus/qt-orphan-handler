@@ -145,8 +145,8 @@
 								{:else if orphan.reason === 'arr_no_record'}
 									<span class="badge badge-warning">No Arr Record</span>
 								{/if}
-								{#if orphan.matchedFilter}
-									<span class="badge badge-info">{orphan.matchedFilter}</span>
+								{#if orphan.arrStatus}
+									<span class="badge badge-info">{orphan.arrStatus}</span>
 								{/if}
 							</td>
 							<td class="muted">{orphan.state}</td>

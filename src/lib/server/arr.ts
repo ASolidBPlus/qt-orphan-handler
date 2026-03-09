@@ -20,6 +20,7 @@ export interface ArrCheckResult {
 	hasDeleteEvent: boolean;
 	instanceName: string;
 	lastEvent: string | null;
+	status: string;
 }
 
 export class ArrClient {
@@ -60,7 +61,8 @@ export class ArrClient {
 			imported: false,
 			hasDeleteEvent: false,
 			instanceName: this.instance.name,
-			lastEvent: null
+			lastEvent: null,
+			status: 'No History'
 		};
 
 		try {
@@ -75,6 +77,7 @@ export class ArrClient {
 				if (inQueue) {
 					result.found = true;
 					result.inQueue = true;
+					result.status = 'In Queue';
 					return result;
 				}
 			}
@@ -105,11 +108,23 @@ export class ArrClient {
 					result.hasDeleteEvent = true;
 				}
 			}
+
+			// Determine descriptive status
+			if (result.imported && result.hasDeleteEvent) {
+				result.status = 'Imported, Media Deleted';
+			} else if (result.imported) {
+				result.status = 'Imported';
+			} else if (result.lastEvent === 'grabbed') {
+				result.status = 'Grabbed';
+			} else {
+				result.status = `In History (${result.lastEvent})`;
+			}
 		} catch (e) {
 			console.error(
 				`[arr] Error checking ${this.instance.name} for ${hash}:`,
 				(e as Error).message
 			);
+			result.status = 'Error';
 		}
 
 		return result;
@@ -124,6 +139,7 @@ export async function checkAllInstances(
 	isOrphaned: boolean;
 	reason: 'arr_no_record' | 'arr_deleted' | null;
 	instanceName: string | null;
+	arrStatus: string | null;
 }> {
 	// Find instances that match this torrent's category
 	const matching = instances.filter(
@@ -131,7 +147,7 @@ export async function checkAllInstances(
 	);
 
 	if (matching.length === 0) {
-		return { isOrphaned: false, reason: null, instanceName: null };
+		return { isOrphaned: false, reason: null, instanceName: null, arrStatus: null };
 	}
 
 	for (const instance of matching) {
@@ -140,7 +156,7 @@ export async function checkAllInstances(
 
 		// If it's in the queue, it's actively being processed — not orphaned
 		if (result.inQueue) {
-			return { isOrphaned: false, reason: null, instanceName: null };
+			return { isOrphaned: false, reason: null, instanceName: instance.name, arrStatus: result.status };
 		}
 
 		// Found in history
@@ -150,13 +166,16 @@ export async function checkAllInstances(
 				return {
 					isOrphaned: true,
 					reason: 'arr_deleted',
-					instanceName: instance.name
+					instanceName: instance.name,
+					arrStatus: result.status
 				};
 			}
 			// Found and imported, media still exists → not orphaned
 			if (result.imported) {
-				return { isOrphaned: false, reason: null, instanceName: null };
+				return { isOrphaned: false, reason: null, instanceName: instance.name, arrStatus: result.status };
 			}
+			// Found but not imported — return status for context
+			return { isOrphaned: false, reason: null, instanceName: instance.name, arrStatus: result.status };
 		}
 	}
 
@@ -164,6 +183,7 @@ export async function checkAllInstances(
 	return {
 		isOrphaned: true,
 		reason: 'arr_no_record',
-		instanceName: matching[0].name
+		instanceName: matching[0].name,
+		arrStatus: 'No History'
 	};
 }

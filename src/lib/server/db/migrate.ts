@@ -25,6 +25,7 @@ export function migrate(db: AppDb) {
 		state TEXT NOT NULL,
 		reason TEXT NOT NULL,
 		matched_filter TEXT,
+		arr_status TEXT,
 		deleted_at TEXT
 	)`);
 
@@ -40,4 +41,11 @@ export function migrate(db: AppDb) {
 
 	db.run(sql`CREATE INDEX IF NOT EXISTS idx_orphaned_torrents_scan_id ON orphaned_torrents(scan_id)`);
 	db.run(sql`CREATE INDEX IF NOT EXISTS idx_orphaned_files_torrent_id ON orphaned_files(orphan_torrent_id)`);
+
+	// Migration: add arr_status column if missing
+	try {
+		db.run(sql`ALTER TABLE orphaned_torrents ADD COLUMN arr_status TEXT`);
+	} catch {
+		// Column already exists
+	}
 }

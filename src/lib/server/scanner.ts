@@ -164,6 +164,7 @@ export async function runScan(db: AppDb, config: AppConfig): Promise<number> {
 			let allOrphaned = true;
 			let torrentReason: 'no_links' | 'filtered_only' | 'arr_no_record' | 'arr_deleted' = 'no_links';
 			let torrentFilter: string | null = null;
+			let arrStatus: string | null = null;
 
 			for (const file of files) {
 				const rawPath = join(torrent.save_path, file.name);
@@ -225,9 +226,12 @@ export async function runScan(db: AppDb, config: AppConfig): Promise<number> {
 					torrent.category
 				);
 
+				arrStatus = arrResult.arrStatus
+					? `${arrResult.instanceName}: ${arrResult.arrStatus}`
+					: null;
+
 				if (arrResult.isOrphaned && arrResult.reason) {
 					if (!allOrphaned) {
-						// Not orphaned by hard links, but *arr says it's orphaned
 						allOrphaned = true;
 						console.log(
 							`[scanner] ${torrent.name}: marked orphaned by ${arrResult.instanceName} (${arrResult.reason})`
@@ -236,16 +240,7 @@ export async function runScan(db: AppDb, config: AppConfig): Promise<number> {
 					torrentReason = arrResult.reason;
 					torrentFilter = arrResult.instanceName;
 				} else if (allOrphaned && arrResult.instanceName) {
-					// Already orphaned by hard links — attach *arr instance name for context
 					torrentFilter = arrResult.instanceName;
-				} else if (allOrphaned && !arrResult.found) {
-					// Orphaned by hard links, no *arr record — find matching instance name
-					const matching = config.arrInstances.find(
-						(inst) => inst.category.toLowerCase() === torrent.category.toLowerCase()
-					);
-					if (matching) {
-						torrentFilter = matching.name;
-					}
 				}
 			}
 
@@ -265,7 +260,8 @@ export async function runScan(db: AppDb, config: AppConfig): Promise<number> {
 						size: torrent.size,
 						state: torrent.state,
 						reason: torrentReason,
-						matchedFilter: torrentFilter
+						matchedFilter: torrentFilter,
+						arrStatus: arrStatus
 					})
 					.returning()
 					.get();
