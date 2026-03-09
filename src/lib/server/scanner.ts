@@ -217,8 +217,8 @@ export async function runScan(db: AppDb, config: AppConfig): Promise<number> {
 				}
 			}
 
-			// If not orphaned by hard links, check *arr instances
-			if (!allOrphaned && hasArrInstances && torrent.category) {
+			// Check *arr instances for cross-reference
+			if (hasArrInstances && torrent.category) {
 				const arrResult = await checkAllInstances(
 					config.arrInstances,
 					torrent.hash,
@@ -226,12 +226,26 @@ export async function runScan(db: AppDb, config: AppConfig): Promise<number> {
 				);
 
 				if (arrResult.isOrphaned && arrResult.reason) {
-					allOrphaned = true;
+					if (!allOrphaned) {
+						// Not orphaned by hard links, but *arr says it's orphaned
+						allOrphaned = true;
+						console.log(
+							`[scanner] ${torrent.name}: marked orphaned by ${arrResult.instanceName} (${arrResult.reason})`
+						);
+					}
 					torrentReason = arrResult.reason;
 					torrentFilter = arrResult.instanceName;
-					console.log(
-						`[scanner] ${torrent.name}: marked orphaned by ${arrResult.instanceName} (${arrResult.reason})`
+				} else if (allOrphaned && arrResult.instanceName) {
+					// Already orphaned by hard links — attach *arr instance name for context
+					torrentFilter = arrResult.instanceName;
+				} else if (allOrphaned && !arrResult.found) {
+					// Orphaned by hard links, no *arr record — find matching instance name
+					const matching = config.arrInstances.find(
+						(inst) => inst.category.toLowerCase() === torrent.category.toLowerCase()
 					);
+					if (matching) {
+						torrentFilter = matching.name;
+					}
 				}
 			}
 
