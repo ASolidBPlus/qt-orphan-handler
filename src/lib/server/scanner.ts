@@ -7,8 +7,7 @@ import { scans, orphanedTorrents, orphanedFiles } from './db/schema.js';
 import { QBittorrentClient } from './qbittorrent.js';
 
 interface InodeEntry {
-	dev: number;
-	ino: number;
+	count: number;
 	filterName: string;
 }
 
@@ -69,11 +68,15 @@ async function buildInodeMap(config: AppConfig): Promise<InodeMap> {
 				for (const result of stats) {
 					if (result) {
 						const key = inodeKey(result.stat.dev, result.stat.ino);
-						map.set(key, {
-							dev: result.stat.dev,
-							ino: result.stat.ino,
-							filterName: filter.name
-						});
+						const existing = map.get(key);
+						if (existing) {
+							existing.count++;
+						} else {
+							map.set(key, {
+								count: 1,
+								filterName: filter.name
+							});
+						}
 					}
 				}
 			}
@@ -164,6 +167,7 @@ export async function runScan(db: AppDb, config: AppConfig): Promise<number> {
 					const fileStat = await stat(filePath);
 
 					if (fileStat.nlink === 1) {
+						// Only one link (the file itself) — orphaned
 						fileResults.push({
 							path: filePath,
 							size: file.size,
@@ -175,24 +179,33 @@ export async function runScan(db: AppDb, config: AppConfig): Promise<number> {
 					} else {
 						const key = inodeKey(fileStat.dev, fileStat.ino);
 						const filterEntry = inodeMap.get(key);
+						const filterCount = filterEntry ? filterEntry.count : 0;
 
-						if (filterEntry) {
+						// nlink includes: this file (1) + filter links + real links
+						// remaining = nlink - 1 (self) - filterCount
+						const remaining = fileStat.nlink - 1 - filterCount;
+
+						if (remaining <= 0) {
+							// All other links are in filter dirs — orphaned
 							fileResults.push({
 								path: filePath,
 								size: file.size,
 								inode: fileStat.ino,
 								nlink: fileStat.nlink,
-								reason: 'filtered_only',
-								matchedFilter: filterEntry.filterName
+								reason: filterCount > 0 ? 'filtered_only' : 'no_links',
+								matchedFilter: filterEntry?.filterName || null
 							});
-							torrentReason = 'filtered_only';
-							torrentFilter = filterEntry.filterName;
+							if (filterCount > 0) {
+								torrentReason = 'filtered_only';
+								torrentFilter = filterEntry?.filterName || null;
+							}
 						} else {
+							// Has real links outside filter dirs — not orphaned
 							allOrphaned = false;
 						}
 					}
 				} catch {
-					// File doesn't exist on disk — treat as orphaned (no_links)
+					// File doesn't exist on disk — treat as orphaned
 					fileResults.push({
 						path: filePath,
 						size: file.size,
