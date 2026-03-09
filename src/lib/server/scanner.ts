@@ -106,10 +106,11 @@ export async function runScan(db: AppDb, config: AppConfig): Promise<number> {
 		throw new Error('Scan already in progress');
 	}
 
-	const [scan] = db
+	const scan = db
 		.insert(scans)
 		.values({ startedAt: new Date().toISOString(), status: 'running' })
-		.returning();
+		.returning()
+		.get();
 
 	currentProgress = { scanning: true, scanId: scan.id, processed: 0, total: 0 };
 
@@ -207,7 +208,7 @@ export async function runScan(db: AppDb, config: AppConfig): Promise<number> {
 				orphanCount++;
 				orphanBytes += torrent.size;
 
-				const [orphan] = db
+				const orphan = db
 					.insert(orphanedTorrents)
 					.values({
 						scanId: scan.id,
@@ -221,7 +222,8 @@ export async function runScan(db: AppDb, config: AppConfig): Promise<number> {
 						reason: torrentReason,
 						matchedFilter: torrentFilter
 					})
-					.returning();
+					.returning()
+					.get();
 
 				for (const fr of fileResults) {
 					db.insert(orphanedFiles)
