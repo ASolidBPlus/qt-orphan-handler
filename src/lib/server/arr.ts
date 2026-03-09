@@ -5,6 +5,7 @@ interface ArrHistoryRecord {
 	downloadId: string;
 	date: string;
 	sourceTitle: string;
+	data?: Record<string, string>;
 }
 
 interface ArrQueueRecord {
@@ -21,6 +22,7 @@ export interface ArrCheckResult {
 	instanceName: string;
 	lastEvent: string | null;
 	status: string;
+	importedPaths: string[];
 }
 
 export class ArrClient {
@@ -62,7 +64,8 @@ export class ArrClient {
 			hasDeleteEvent: false,
 			instanceName: this.instance.name,
 			lastEvent: null,
-			status: 'No History'
+			status: 'No History',
+			importedPaths: []
 		};
 
 		try {
@@ -99,6 +102,11 @@ export class ArrClient {
 			for (const record of records) {
 				if (record.eventType === 'downloadFolderImported') {
 					result.imported = true;
+					// Extract imported path from event data
+					const importedPath = record.data?.importedPath;
+					if (importedPath && !result.importedPaths.includes(importedPath)) {
+						result.importedPaths.push(importedPath);
+					}
 				}
 				if (
 					record.eventType === 'episodeFileDeleted' ||
@@ -140,6 +148,7 @@ export async function checkAllInstances(
 	reason: 'arr_no_record' | 'arr_deleted' | null;
 	instanceName: string | null;
 	arrStatus: string | null;
+	importedPaths: string[];
 }> {
 	// Find instances that match this torrent's category
 	const matching = instances.filter(
@@ -147,43 +156,39 @@ export async function checkAllInstances(
 	);
 
 	if (matching.length === 0) {
-		return { isOrphaned: false, reason: null, instanceName: null, arrStatus: null };
+		return { isOrphaned: false, reason: null, instanceName: null, arrStatus: null, importedPaths: [] };
 	}
 
 	for (const instance of matching) {
 		const client = new ArrClient(instance);
 		const result = await client.checkTorrent(hash);
 
-		// If it's in the queue, it's actively being processed — not orphaned
 		if (result.inQueue) {
-			return { isOrphaned: false, reason: null, instanceName: instance.name, arrStatus: result.status };
+			return { isOrphaned: false, reason: null, instanceName: instance.name, arrStatus: result.status, importedPaths: [] };
 		}
 
-		// Found in history
 		if (result.found) {
-			// Was imported and then the media file was deleted → orphaned
 			if (result.imported && result.hasDeleteEvent) {
 				return {
 					isOrphaned: true,
 					reason: 'arr_deleted',
 					instanceName: instance.name,
-					arrStatus: result.status
+					arrStatus: result.status,
+					importedPaths: result.importedPaths
 				};
 			}
-			// Found and imported, media still exists → not orphaned
 			if (result.imported) {
-				return { isOrphaned: false, reason: null, instanceName: instance.name, arrStatus: result.status };
+				return { isOrphaned: false, reason: null, instanceName: instance.name, arrStatus: result.status, importedPaths: result.importedPaths };
 			}
-			// Found but not imported — return status for context
-			return { isOrphaned: false, reason: null, instanceName: instance.name, arrStatus: result.status };
+			return { isOrphaned: false, reason: null, instanceName: instance.name, arrStatus: result.status, importedPaths: result.importedPaths };
 		}
 	}
 
-	// Not found in any matching instance's history or queue
 	return {
 		isOrphaned: true,
 		reason: 'arr_no_record',
 		instanceName: matching[0].name,
-		arrStatus: 'No History'
+		arrStatus: 'No History',
+		importedPaths: []
 	};
 }

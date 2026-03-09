@@ -230,6 +230,53 @@ export async function runScan(db: AppDb, config: AppConfig): Promise<number> {
 					? `${arrResult.instanceName}: ${arrResult.arrStatus}`
 					: null;
 
+				// If *arr says "Imported" and we have imported paths, verify files still exist
+				if (arrResult.importedPaths.length > 0 && arrResult.arrStatus === 'Imported') {
+					let libraryFileExists = false;
+
+					for (const importedPath of arrResult.importedPaths) {
+						const mappedImportPath = applyPathMappings(importedPath, config.pathMappings);
+						try {
+							const libStat = await stat(mappedImportPath);
+
+							// Compare with torrent files
+							for (const fr of fileResults) {
+								if (fr.inode === 0) continue; // file didn't exist
+								try {
+									const torrentStat = await stat(fr.path);
+									const sameInode = torrentStat.ino === libStat.ino && torrentStat.dev === libStat.dev;
+									const sameSize = torrentStat.size === libStat.size;
+
+									console.log(
+										`[scanner] File comparison for "${torrent.name}":\n` +
+										`  Torrent file: ${fr.path} (inode=${torrentStat.ino}, size=${torrentStat.size})\n` +
+										`  Library file: ${mappedImportPath} (inode=${libStat.ino}, size=${libStat.size})\n` +
+										`  Same inode: ${sameInode}, Same size: ${sameSize}` +
+										(sameInode ? ' [HARD-LINKED]' : sameSize ? ' [COPY]' : ' [DIFFERENT]')
+									);
+								} catch {
+									// torrent file stat failed, skip
+								}
+							}
+
+							libraryFileExists = true;
+						} catch {
+							console.log(`[scanner] Library file missing: ${mappedImportPath} (torrent: "${torrent.name}")`);
+						}
+					}
+
+					if (libraryFileExists) {
+						// Library file still exists — not orphaned regardless of hard link status
+						allOrphaned = false;
+						arrStatus = `${arrResult.instanceName}: Imported, File Exists`;
+						console.log(`[scanner] ${torrent.name}: NOT orphaned — library file still exists`);
+					} else {
+						// Imported but library file is gone
+						arrStatus = `${arrResult.instanceName}: Imported, File Missing`;
+						console.log(`[scanner] ${torrent.name}: library file(s) missing despite import`);
+					}
+				}
+
 				if (arrResult.isOrphaned && arrResult.reason) {
 					if (!allOrphaned) {
 						allOrphaned = true;
