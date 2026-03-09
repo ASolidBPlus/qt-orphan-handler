@@ -150,16 +150,34 @@
 						{#if expandedId === orphan.id && data.files[orphan.id]}
 							<tr class="files-row">
 								<td colspan="6">
-									<div class="files-list">
-										<strong>Files:</strong>
-										{#each data.files[orphan.id] as file}
-											<div class="file-entry">
-												<span class="file-path">{file.filePath}</span>
-												<span class="muted">{formatBytes(file.size)}</span>
-												<span class="muted">nlink={file.nlinkCount}</span>
-											</div>
-										{/each}
-									</div>
+									<table class="files-table">
+										<thead>
+											<tr>
+												<th>File</th>
+												<th>Size</th>
+												<th>Links</th>
+												<th>Inode</th>
+												<th>Reason</th>
+											</tr>
+										</thead>
+										<tbody>
+											{#each data.files[orphan.id] as file}
+												<tr>
+													<td class="file-path">{file.filePath}</td>
+													<td>{formatBytes(file.size)}</td>
+													<td>{file.nlinkCount}</td>
+													<td class="muted">{file.inode || '—'}</td>
+													<td>
+														{#if file.reason === 'no_links'}
+															<span class="badge badge-danger">No Links</span>
+														{:else}
+															<span class="badge badge-warning">Filtered</span>
+														{/if}
+													</td>
+												</tr>
+											{/each}
+										</tbody>
+									</table>
 								</td>
 							</tr>
 						{/if}
@@ -285,24 +303,29 @@
 
 	.files-row td {
 		background: var(--bg);
-		padding: 0.75rem 1rem;
+		padding: 0;
 	}
 
-	.files-list {
-		display: flex;
-		flex-direction: column;
-		gap: 0.25rem;
+	.files-table {
+		width: 100%;
+		border-collapse: collapse;
 		font-size: 0.8rem;
 	}
 
-	.file-entry {
-		display: flex;
-		gap: 1rem;
-		align-items: center;
+	.files-table th {
+		background: var(--bg-card);
+		font-size: 0.7rem;
+	}
+
+	.files-table th,
+	.files-table td {
+		padding: 0.4rem 0.75rem;
+		border-bottom: 1px solid var(--border);
 	}
 
 	.file-path {
 		font-family: monospace;
+		font-size: 0.75rem;
 		word-break: break-all;
 	}
 
