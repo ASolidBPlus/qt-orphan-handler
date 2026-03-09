@@ -52,6 +52,7 @@ export class QBittorrentClient {
 			password: this.password
 		});
 
+		console.log(`[qbt] Attempting login to ${this.url}`);
 		const res = await fetch(`${this.url}/api/v2/auth/login`, {
 			method: 'POST',
 			headers: {
@@ -62,26 +63,37 @@ export class QBittorrentClient {
 		});
 
 		const text = await res.text();
+		console.log(`[qbt] Login response: status=${res.status} body="${text}"`);
+
 		if (text === 'Ok.') {
 			const setCookie = res.headers.get('set-cookie');
+			console.log(`[qbt] Login set-cookie: ${setCookie}`);
 			if (setCookie) {
 				this.cookie = setCookie.split(';')[0];
 			}
 			return true;
 		}
+		console.log(`[qbt] Login failed: status=${res.status} body="${text}" headers=${JSON.stringify(Object.fromEntries(res.headers.entries()))}`);
 		return false;
 	}
 
 	async testConnection(): Promise<{ ok: boolean; version?: string; error?: string }> {
 		try {
 			// Always try login first (qBT may require it even without credentials)
-			await this.login();
+			const loggedIn = await this.login();
+			console.log(`[qbt] Login result: ${loggedIn}, cookie: ${this.cookie ? 'yes' : 'no'}`);
 
 			const res = await this.request('/api/v2/app/version');
-			if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+			console.log(`[qbt] Version request: status=${res.status}`);
+			if (!res.ok) {
+				const body = await res.text();
+				console.log(`[qbt] Version request failed: body="${body}"`);
+				return { ok: false, error: `HTTP ${res.status}` };
+			}
 			const version = await res.text();
 			return { ok: true, version };
 		} catch (e) {
+			console.error(`[qbt] testConnection error:`, e);
 			return { ok: false, error: (e as Error).message };
 		}
 	}
