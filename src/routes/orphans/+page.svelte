@@ -138,8 +138,12 @@
 							<td>
 								{#if orphan.reason === 'no_links'}
 									<span class="badge badge-danger">No Links</span>
-								{:else}
+								{:else if orphan.reason === 'filtered_only'}
 									<span class="badge badge-warning">Filtered Only</span>
+								{:else if orphan.reason === 'arr_deleted'}
+									<span class="badge badge-danger">Arr Deleted</span>
+								{:else if orphan.reason === 'arr_no_record'}
+									<span class="badge badge-warning">No Arr Record</span>
 								{/if}
 								{#if orphan.matchedFilter}
 									<span class="badge badge-info">{orphan.matchedFilter}</span>

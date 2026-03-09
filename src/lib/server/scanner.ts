@@ -5,6 +5,7 @@ import type { AppConfig, PathMapping } from '$lib/types.js';
 import type { AppDb } from './db/index.js';
 import { scans, orphanedTorrents, orphanedFiles } from './db/schema.js';
 import { QBittorrentClient } from './qbittorrent.js';
+import { checkAllInstances } from './arr.js';
 
 interface InodeEntry {
 	count: number;
@@ -132,6 +133,11 @@ export async function runScan(db: AppDb, config: AppConfig): Promise<number> {
 		const inodeMap = await buildInodeMap(config);
 		console.log(`[scanner] Inode map built with ${inodeMap.size} entries`);
 
+		const hasArrInstances = config.arrInstances && config.arrInstances.length > 0;
+		if (hasArrInstances) {
+			console.log(`[scanner] ${config.arrInstances.length} *arr instance(s) configured for cross-reference`);
+		}
+
 		const categories = config.scan.categories.length > 0 ? config.scan.categories : undefined;
 		const torrents = await qbt.getTorrents(categories);
 		console.log(`[scanner] Found ${torrents.length} torrents to scan`);
@@ -156,7 +162,7 @@ export async function runScan(db: AppDb, config: AppConfig): Promise<number> {
 			}[] = [];
 
 			let allOrphaned = true;
-			let torrentReason: 'no_links' | 'filtered_only' = 'no_links';
+			let torrentReason: 'no_links' | 'filtered_only' | 'arr_no_record' | 'arr_deleted' = 'no_links';
 			let torrentFilter: string | null = null;
 
 			for (const file of files) {
@@ -167,7 +173,6 @@ export async function runScan(db: AppDb, config: AppConfig): Promise<number> {
 					const fileStat = await stat(filePath);
 
 					if (fileStat.nlink === 1) {
-						// Only one link (the file itself) — orphaned
 						fileResults.push({
 							path: filePath,
 							size: file.size,
@@ -181,12 +186,9 @@ export async function runScan(db: AppDb, config: AppConfig): Promise<number> {
 						const filterEntry = inodeMap.get(key);
 						const filterCount = filterEntry ? filterEntry.count : 0;
 
-						// nlink includes: this file (1) + filter links + real links
-						// remaining = nlink - 1 (self) - filterCount
 						const remaining = fileStat.nlink - 1 - filterCount;
 
 						if (remaining <= 0) {
-							// All other links are in filter dirs — orphaned
 							fileResults.push({
 								path: filePath,
 								size: file.size,
@@ -200,12 +202,10 @@ export async function runScan(db: AppDb, config: AppConfig): Promise<number> {
 								torrentFilter = filterEntry?.filterName || null;
 							}
 						} else {
-							// Has real links outside filter dirs — not orphaned
 							allOrphaned = false;
 						}
 					}
 				} catch {
-					// File doesn't exist on disk — treat as orphaned
 					fileResults.push({
 						path: filePath,
 						size: file.size,
@@ -214,6 +214,24 @@ export async function runScan(db: AppDb, config: AppConfig): Promise<number> {
 						reason: 'no_links',
 						matchedFilter: null
 					});
+				}
+			}
+
+			// If not orphaned by hard links, check *arr instances
+			if (!allOrphaned && hasArrInstances && torrent.category) {
+				const arrResult = await checkAllInstances(
+					config.arrInstances,
+					torrent.hash,
+					torrent.category
+				);
+
+				if (arrResult.isOrphaned && arrResult.reason) {
+					allOrphaned = true;
+					torrentReason = arrResult.reason;
+					torrentFilter = arrResult.instanceName;
+					console.log(
+						`[scanner] ${torrent.name}: marked orphaned by ${arrResult.instanceName} (${arrResult.reason})`
+					);
 				}
 			}
 

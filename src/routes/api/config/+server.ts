@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types.js';
 import { saveConfig, validateConfig } from '$lib/server/config.js';
 import { startScheduler } from '$lib/server/scheduler.js';
 import { QBittorrentClient } from '$lib/server/qbittorrent.js';
+import { ArrClient } from '$lib/server/arr.js';
 
 export const GET: RequestHandler = async ({ locals }) => {
 	return json(locals.config);
@@ -33,6 +34,19 @@ export const POST: RequestHandler = async ({ request }) => {
 		};
 		const qbt = new QBittorrentClient(url, username || '', password || '');
 		const result = await qbt.testConnection();
+		return json(result);
+	}
+
+	if (action === 'test-arr') {
+		const { name, type, url, apiKey, category } = body as {
+			name: string;
+			type: 'sonarr' | 'radarr';
+			url: string;
+			apiKey: string;
+			category: string;
+		};
+		const client = new ArrClient({ name, type, url, apiKey, category });
+		const result = await client.testConnection();
 		return json(result);
 	}
 

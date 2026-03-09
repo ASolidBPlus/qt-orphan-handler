@@ -23,7 +23,7 @@ export const orphanedTorrents = sqliteTable('orphaned_torrents', {
 	savePath: text('save_path').notNull(),
 	size: integer('size').notNull(),
 	state: text('state').notNull(),
-	reason: text('reason', { enum: ['no_links', 'filtered_only'] }).notNull(),
+	reason: text('reason', { enum: ['no_links', 'filtered_only', 'arr_no_record', 'arr_deleted'] }).notNull(),
 	matchedFilter: text('matched_filter'),
 	deletedAt: text('deleted_at')
 });

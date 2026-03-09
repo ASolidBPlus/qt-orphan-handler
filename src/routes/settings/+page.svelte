@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { PageData } from './$types.js';
-	import type { AppConfig, FilterConfig, PathMapping } from '$lib/types.js';
+	import type { AppConfig, FilterConfig, PathMapping, ArrInstance } from '$lib/types.js';
 
 	let { data } = $props<{ data: PageData }>();
 
@@ -75,6 +75,38 @@
 
 	function removeMapping(i: number) {
 		config.pathMappings = config.pathMappings.filter((_, idx) => idx !== i);
+	}
+
+	function addArrInstance() {
+		config.arrInstances = [...config.arrInstances, { name: '', type: 'sonarr', url: '', apiKey: '', category: '' }];
+	}
+
+	function removeArrInstance(i: number) {
+		config.arrInstances = config.arrInstances.filter((_, idx) => idx !== i);
+	}
+
+	let arrTestResults = $state<Record<number, { ok: boolean; version?: string; error?: string } | null>>({});
+	let arrTesting = $state<Record<number, boolean>>({});
+
+	async function testArrConnection(i: number) {
+		arrTesting = { ...arrTesting, [i]: true };
+		arrTestResults = { ...arrTestResults, [i]: null };
+		const inst = config.arrInstances[i];
+		try {
+			const res = await fetch('/api/config', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					action: 'test-arr',
+					...inst
+				})
+			});
+			arrTestResults = { ...arrTestResults, [i]: await res.json() };
+		} catch (e) {
+			arrTestResults = { ...arrTestResults, [i]: { ok: false, error: (e as Error).message } };
+		} finally {
+			arrTesting = { ...arrTesting, [i]: false };
+		}
 	}
 </script>
 
@@ -161,6 +193,59 @@
 			</div>
 		{/each}
 		<button class="btn-outline" onclick={addFilter}>+ Add Filter</button>
+	</div>
+
+	<div class="card section">
+		<h2>Sonarr / Radarr Instances</h2>
+		<p class="help">Add *arr instances to cross-reference torrents. Torrents whose media was deleted or that have no history in the matching *arr will be flagged as orphaned.</p>
+
+		{#each config.arrInstances as inst, i}
+			<div class="arr-block">
+				<div class="form-row two-col">
+					<div class="field">
+						<label for="arr-name-{i}">Name</label>
+						<input id="arr-name-{i}" type="text" bind:value={config.arrInstances[i].name} placeholder="My Sonarr" />
+					</div>
+					<div class="field">
+						<label for="arr-type-{i}">Type</label>
+						<select id="arr-type-{i}" bind:value={config.arrInstances[i].type}>
+							<option value="sonarr">Sonarr</option>
+							<option value="radarr">Radarr</option>
+						</select>
+					</div>
+				</div>
+				<div class="form-row">
+					<div class="field">
+						<label for="arr-url-{i}">URL</label>
+						<input id="arr-url-{i}" type="text" bind:value={config.arrInstances[i].url} placeholder="http://sonarr:8989" />
+					</div>
+				</div>
+				<div class="form-row two-col">
+					<div class="field">
+						<label for="arr-key-{i}">API Key</label>
+						<input id="arr-key-{i}" type="password" bind:value={config.arrInstances[i].apiKey} />
+					</div>
+					<div class="field">
+						<label for="arr-cat-{i}">qBT Category</label>
+						<input id="arr-cat-{i}" type="text" bind:value={config.arrInstances[i].category} placeholder="sonarr" />
+					</div>
+				</div>
+				<div class="test-row">
+					<button class="btn-outline btn-sm" onclick={() => testArrConnection(i)} disabled={arrTesting[i]}>
+						{arrTesting[i] ? 'Testing...' : 'Test'}
+					</button>
+					{#if arrTestResults[i]}
+						{#if arrTestResults[i].ok}
+							<span class="badge badge-success">Connected (v{arrTestResults[i].version})</span>
+						{:else}
+							<span class="badge badge-danger">Failed: {arrTestResults[i].error}</span>
+						{/if}
+					{/if}
+					<button class="btn-outline btn-sm" style="margin-left: auto;" onclick={() => removeArrInstance(i)}>Remove</button>
+				</div>
+			</div>
+		{/each}
+		<button class="btn-outline" onclick={addArrInstance}>+ Add Instance</button>
 	</div>
 
 	<div class="card section">
@@ -292,5 +377,14 @@
 	.btn-sm {
 		padding: 0.25rem 0.5rem;
 		font-size: 0.8rem;
+	}
+
+	.arr-block {
+		background: var(--bg);
+		border-radius: var(--radius);
+		padding: 0.75rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
 	}
 </style>

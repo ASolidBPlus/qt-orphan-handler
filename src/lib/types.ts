@@ -10,6 +10,7 @@ export interface AppConfig {
 	};
 	filters: FilterConfig[];
 	pathMappings: PathMapping[];
+	arrInstances: ArrInstance[];
 }
 
 export interface FilterConfig {
@@ -20,6 +21,14 @@ export interface FilterConfig {
 export interface PathMapping {
 	from: string;
 	to: string;
+}
+
+export interface ArrInstance {
+	name: string;
+	type: 'sonarr' | 'radarr';
+	url: string;
+	apiKey: string;
+	category: string;
 }
 
 export interface QBTorrent {
@@ -61,7 +70,7 @@ export interface OrphanedTorrent {
 	savePath: string;
 	size: number;
 	state: string;
-	reason: 'no_links' | 'filtered_only';
+	reason: 'no_links' | 'filtered_only' | 'arr_no_record' | 'arr_deleted';
 	matchedFilter: string | null;
 	deletedAt: string | null;
 }
@@ -87,5 +96,6 @@ export const DEFAULT_CONFIG: AppConfig = {
 		categories: ['sonarr', 'radarr']
 	},
 	filters: [],
-	pathMappings: []
+	pathMappings: [],
+	arrInstances: []
 };

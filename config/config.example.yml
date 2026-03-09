@@ -17,3 +17,15 @@ filters:
 pathMappings: []
 # - from: "/downloads/"
 #   to: "/data/downloads/"
+
+arrInstances: []
+# - name: "Sonarr"
+#   type: "sonarr"
+#   url: "http://sonarr:8989"
+#   apiKey: "your-api-key"
+#   category: "sonarr"
+# - name: "Radarr"
+#   type: "radarr"
+#   url: "http://radarr:7878"
+#   apiKey: "your-api-key"
+#   category: "radarr"
