@@ -1,0 +1,15 @@
+services:
+  qt-orphan-handler:
+    build: .
+    container_name: qt-orphan-handler
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./config:/config
+      # Mount the same paths qBittorrent sees so stat() works
+      # Adjust these to match your setup
+      # - /data:/data
+    environment:
+      - CONFIG_PATH=/config/config.yml
+      - DB_PATH=/config/qt-orphan-handler.db
+    restart: unless-stopped

@@ -1,0 +1,19 @@
+qbittorrent:
+  url: "http://localhost:8080"
+  username: ""
+  password: ""
+
+scan:
+  interval: 3600
+  categories:
+    - "sonarr"
+    - "radarr"
+
+filters:
+  - name: "cross-seed"
+    directories:
+      - "/data/cross-seed"
+
+pathMappings: []
+# - from: "/downloads/"
+#   to: "/data/downloads/"

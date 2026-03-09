@@ -1,0 +1,9 @@
+node_modules
+.svelte-kit
+.git
+.github
+.claude
+.vscode
+*.md
+config/config.yml
+config/*.db
