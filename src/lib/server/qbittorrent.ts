@@ -12,9 +12,16 @@ export class QBittorrentClient {
 		this.password = password;
 	}
 
+	private baseHeaders(): Record<string, string> {
+		return {
+			Referer: this.url,
+			Origin: this.url
+		};
+	}
+
 	private async request(path: string, options: RequestInit = {}): Promise<Response> {
 		const headers: Record<string, string> = {
-			Referer: this.url,
+			...this.baseHeaders(),
 			...(options.headers as Record<string, string> || {})
 		};
 
@@ -27,18 +34,19 @@ export class QBittorrentClient {
 			headers
 		});
 
-		if (res.status === 403 && this.username) {
-			await this.login();
-			headers['Cookie'] = this.cookie || '';
-			return fetch(`${this.url}${path}`, { ...options, headers });
+		// On 403, attempt login and retry once
+		if (res.status === 403 && !this.cookie) {
+			const loggedIn = await this.login();
+			if (loggedIn && this.cookie) {
+				headers['Cookie'] = this.cookie;
+				return fetch(`${this.url}${path}`, { ...options, headers });
+			}
 		}
 
 		return res;
 	}
 
 	async login(): Promise<boolean> {
-		if (!this.username) return true;
-
 		const body = new URLSearchParams({
 			username: this.username,
 			password: this.password
@@ -48,7 +56,7 @@ export class QBittorrentClient {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/x-www-form-urlencoded',
-				Referer: this.url
+				...this.baseHeaders()
 			},
 			body
 		});
@@ -66,10 +74,9 @@ export class QBittorrentClient {
 
 	async testConnection(): Promise<{ ok: boolean; version?: string; error?: string }> {
 		try {
-			if (this.username) {
-				const loggedIn = await this.login();
-				if (!loggedIn) return { ok: false, error: 'Authentication failed' };
-			}
+			// Always try login first (qBT may require it even without credentials)
+			await this.login();
+
 			const res = await this.request('/api/v2/app/version');
 			if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
 			const version = await res.text();
